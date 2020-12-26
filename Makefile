@@ -1,1 +1,1 @@
-obj-m := scull.o
+obj-m := scull.o vector.o
