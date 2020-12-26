@@ -50,6 +50,7 @@ module_param(scull_qset, int, S_IRUGO);
 MODULE_AUTHOR("Alessandro Rubini, Jonathan Corbet");
 MODULE_LICENSE("Dual BSD/GPL");
 
+//deneme
 
 struct scull_dev {
     char_vector key;
@@ -427,6 +428,91 @@ int scull_init_module(void)
 
         dev->data = CV_create(0);
         dev->key = CV_create_from_cstr("dcba", 4);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
         dev->size = 0;
         dev->written = 0;
 
