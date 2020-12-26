@@ -26,6 +26,7 @@
 #include <asm/uaccess.h>	/* copy_*_user */
 
 
+#include "encrypt.h"
 
 #include "scull_ioctl.h"
 
@@ -49,10 +50,12 @@ module_param(scull_qset, int, S_IRUGO);
 MODULE_AUTHOR("Alessandro Rubini, Jonathan Corbet");
 MODULE_LICENSE("Dual BSD/GPL");
 
+
 struct scull_dev {
-    char **data;
-    int quantum;
-    int qset;
+    char_vector key;
+    char_vector data;
+    int written;
+
     unsigned long size;
     struct semaphore sem;
     struct cdev cdev;
@@ -63,19 +66,19 @@ struct scull_dev *scull_devices;
 
 int scull_trim(struct scull_dev *dev)
 {
-    int i;
+    // int i;
 
-    if (dev->data) {
-        for (i = 0; i < dev->qset; i++) {
-            if (dev->data[i])
-                kfree(dev->data[i]);
-        }
-        kfree(dev->data);
-    }
-    dev->data = NULL;
-    dev->quantum = scull_quantum;
-    dev->qset = scull_qset;
-    dev->size = 0;
+    // if (dev->data) {
+    //     for (i = 0; i < dev->qset; i++) {
+    //         if (dev->data[i])
+    //             kfree(dev->data[i]);
+    //     }
+    //     kfree(dev->data);
+    // }
+    // dev->data = NULL;
+    //dev->quantum = scull_quantum;
+    //dev->qset = scull_qset;
+    // dev->size = 0;
     return 0;
 }
 
@@ -103,89 +106,100 @@ int scull_release(struct inode *inode, struct file *filp)
     return 0;
 }
 
-
 ssize_t scull_read(struct file *filp, char __user *buf, size_t count,
                    loff_t *f_pos)
 {
-    struct scull_dev *dev = filp->private_data;
-    int quantum = dev->quantum;
-    int s_pos, q_pos;
-    ssize_t retval = 0;
+    // struct scull_dev *dev = filp->private_data;
+    // int quantum = dev->quantum;
+    // int s_pos, q_pos;
+    // ssize_t retval = 0;
 
-    if (down_interruptible(&dev->sem))
-        return -ERESTARTSYS;
-
-
-
-    if (*f_pos >= dev->size)
-        goto out;
-    if (*f_pos + count > dev->size)
-        count = dev->size - *f_pos;
-
-    s_pos = (long) *f_pos / quantum;
-    q_pos = (long) *f_pos % quantum;
-
-    if (dev->data == NULL || ! dev->data[s_pos])
-        goto out;
-
-    /* read only up to the end of this quantum */
-    if (count > quantum - q_pos)
-        count = quantum - q_pos;
-
-    if (copy_to_user(buf, dev->data[s_pos] + q_pos, count)) {
-        retval = -EFAULT;
-        goto out;
-    }
-    *f_pos += count;
-    retval = count;
+    // if (down_interruptible(&dev->sem))
+    //     return -ERESTARTSYS;
 
 
 
+    // if (*f_pos >= dev->size)
+    //     goto out;
+    // if (*f_pos + count > dev->size)
+    //     count = dev->size - *f_pos;
 
-  out:
-    up(&dev->sem);
-    return retval;
+    // s_pos = (long) *f_pos / quantum;
+    // q_pos = (long) *f_pos % quantum;
+
+    // if (dev->data == NULL || ! dev->data[s_pos])
+    //     goto out;
+
+    // /* read only up to the end of this quantum */
+    // if (count > quantum - q_pos)
+    //     count = quantum - q_pos;
+
+    // if (copy_to_user(buf, dev->data[s_pos] + q_pos, count)) {
+    //     retval = -EFAULT;
+    //     goto out;
+    // }
+    // *f_pos += count;
+    // retval = count;
+
+
+
+
+//   out:
+    // up(&dev->sem);
+    // return retval;
 }
+
+#define PRINT_CV(x) int i=0;for(i=0;i<(x).size;i++) printk("%c", (x).data[i]);
 
 
 ssize_t scull_write(struct file *filp, const char __user *buf, size_t count,
                     loff_t *f_pos)
 {
     struct scull_dev *dev = filp->private_data;
-    int quantum = dev->quantum, qset = dev->qset;
+    // int quantum = dev->quantum, qset = dev->qset;
+    
     int s_pos, q_pos;
     ssize_t retval = -ENOMEM;
 
     if (down_interruptible(&dev->sem))
         return -ERESTARTSYS;
 
-    if (*f_pos >= quantum * qset) {
-        retval = 0;
-        goto out;
+    if (dev->written){
+        return -EEXIST;
     }
 
-    s_pos = (long) *f_pos / quantum;
-    q_pos = (long) *f_pos % quantum;
+    // if (*f_pos >= quantum * qset) {
+    //     retval = 0;
+    //     goto out;
+    // }
+    //yazabileceginden fazlasi
 
-    if (!dev->data) {
-        dev->data = kmalloc(qset * sizeof(char *), GFP_KERNEL);
-        if (!dev->data)
-            goto out;
-        memset(dev->data, 0, qset * sizeof(char *));
-    }
-    if (!dev->data[s_pos]) {
-        dev->data[s_pos] = kmalloc(quantum, GFP_KERNEL);
-        if (!dev->data[s_pos])
-            goto out;
-    }
-    /* write only up to the end of this quantum */
-    if (count > quantum - q_pos)
-        count = quantum - q_pos;
 
-    if (copy_from_user(dev->data[s_pos] + q_pos, buf, count)) {
+    // if (!dev->data[s_pos]) {
+    //     dev->data[s_pos] = kmalloc(quantum, GFP_KERNEL);
+    //     if (!dev->data[s_pos])
+    //         goto out;
+    // }
+    //memory allocation kismi
+    char_vector not_crypted = CV_create(count);
+    
+    if (copy_from_user(not_crypted.data, buf, count)) {
         retval = -EFAULT;
         goto out;
     }
+
+    
+
+    dev->data = encrypt(not_crypted, dev->key);
+
+    printk("DEBUG\n");
+    PRINT_CV(dev->data);
+    // for(int i = 0; i < dev->data.size; i++) kprintf("%c", dev->data.data[i]);
+    
+    // zum kerneli hacklememizi istemiyor
+
+    printk("\n");
+
     *f_pos += count;
     retval = count;
 
@@ -410,8 +424,18 @@ int scull_init_module(void)
     /* Initialize each device. */
     for (i = 0; i < scull_nr_devs; i++) {
         dev = &scull_devices[i];
-        dev->quantum = scull_quantum;
-        dev->qset = scull_qset;
+
+        dev->data = CV_create(0);
+        dev->key = CV_create_from_cstr("dcba", 4);
+        dev->size = 0;
+        dev->written = 0;
+
+
+        init_MUTEX(&dev->sem);
+        dev->size = 0;
+        dev->written = 0;
+
+
         init_MUTEX(&dev->sem);
 
         devno = MKDEV(scull_major, scull_minor + i);
