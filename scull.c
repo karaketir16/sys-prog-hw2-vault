@@ -30,32 +30,22 @@
 
 #include "scull_ioctl.h"
 
+
 #define SCULL_MAJOR 0
 #define SCULL_NR_DEVS 4
-#define SCULL_QUANTUM 4000
-#define SCULL_QSET 1000
 
 int scull_major = SCULL_MAJOR;
 int scull_minor = 0;
 int scull_nr_devs = SCULL_NR_DEVS;
-int scull_quantum = SCULL_QUANTUM;
-int scull_qset = SCULL_QSET;
-
-module_param(scull_major, int, S_IRUGO);
-module_param(scull_minor, int, S_IRUGO);
-module_param(scull_nr_devs, int, S_IRUGO);
-module_param(scull_quantum, int, S_IRUGO);
-module_param(scull_qset, int, S_IRUGO);
 
 MODULE_AUTHOR("Alessandro Rubini, Jonathan Corbet");
 MODULE_LICENSE("Dual BSD/GPL");
 
-//deneme
-
 struct scull_dev {
     char_vector key;
-    char_vector data;
+    char_vector encrypted_text;
     int written;
+    int readed;
 
     unsigned long size;
     struct semaphore sem;
@@ -79,7 +69,9 @@ int scull_trim(struct scull_dev *dev)
     // dev->data = NULL;
     //dev->quantum = scull_quantum;
     //dev->qset = scull_qset;
+    // dev->written = 0;
     // dev->size = 0;
+    // dev->encrypted_text = CV_create(0);
     return 0;
 }
 
@@ -107,108 +99,103 @@ int scull_release(struct inode *inode, struct file *filp)
     return 0;
 }
 
+#define PRINT_CV(x) int i=0;for(i=0;i<(x).size;i++) printk(KERN_CONT "%c", (x).data[i]);
+
 ssize_t scull_read(struct file *filp, char __user *buf, size_t count,
                    loff_t *f_pos)
 {
-    // struct scull_dev *dev = filp->private_data;
-    // int quantum = dev->quantum;
-    // int s_pos, q_pos;
-    // ssize_t retval = 0;
+    printk("DEBUG Read entered, f_pos: %d , count: %d\n", *f_pos, count);
+    struct scull_dev *dev = filp->private_data;
+    ssize_t retval = 0;
 
-    // if (down_interruptible(&dev->sem))
-    //     return -ERESTARTSYS;
+    if (down_interruptible(&dev->sem)){
+        printk("Mutex err\n");
+        return -ERESTARTSYS;
+    }
+        
+    
+    if( ! dev->written){
+        retval = -ENOENT;
+        printk("DEBUG No such file\n");
+        goto out;
+    }
 
+    if(*f_pos >= dev->size){
+        retval = 0;
+        printk("End Of File\n");
+        goto out;
+    }
 
+    if (*f_pos + count > dev->size)
+        count = dev->size - *f_pos;
 
-    // if (*f_pos >= dev->size)
-    //     goto out;
-    // if (*f_pos + count > dev->size)
-    //     count = dev->size - *f_pos;
-
-    // s_pos = (long) *f_pos / quantum;
-    // q_pos = (long) *f_pos % quantum;
-
-    // if (dev->data == NULL || ! dev->data[s_pos])
-    //     goto out;
-
-    // /* read only up to the end of this quantum */
-    // if (count > quantum - q_pos)
-    //     count = quantum - q_pos;
-
-    // if (copy_to_user(buf, dev->data[s_pos] + q_pos, count)) {
-    //     retval = -EFAULT;
+    // if (dev->size != count || *f_pos != 0) {//can not read part, just read full of the text
+    //     retval = -ESRCH;	/* No such process */
+    //     printk("DEBUG No such process \n");
     //     goto out;
     // }
-    // *f_pos += count;
-    // retval = count;
 
 
+    char_vector decrypted = decrypt(dev->encrypted_text, dev->key);
 
 
-//   out:
-    // up(&dev->sem);
-    // return retval;
+    if (copy_to_user(buf, decrypted.data, count)) {
+        retval = -EFAULT;
+        goto out;
+    }
+
+    dev->readed = 1;
+
+    printk("DEBUG Decrypted: ");
+    PRINT_CV(decrypted);
+
+    *f_pos += count;
+    retval = count;
+
+  out:
+    printk("DEBUG Read End, retval: %d", retval);
+    up(&dev->sem);
+    return retval;
 }
-
-#define PRINT_CV(x) int i=0;for(i=0;i<(x).size;i++) printk("%c", (x).data[i]);
 
 
 ssize_t scull_write(struct file *filp, const char __user *buf, size_t count,
                     loff_t *f_pos)
 {
+    printk("DEBUG Write entered, count: %d\n", count);
     struct scull_dev *dev = filp->private_data;
-    // int quantum = dev->quantum, qset = dev->qset;
-    
-    int s_pos, q_pos;
     ssize_t retval = -ENOMEM;
 
     if (down_interruptible(&dev->sem))
         return -ERESTARTSYS;
 
-    if (dev->written){
-        return -EEXIST;
+
+    if (dev->written && ( ! dev->readed)){
+        retval = -EEXIST;
+        goto out;
     }
 
-    // if (*f_pos >= quantum * qset) {
-    //     retval = 0;
-    //     goto out;
-    // }
-    //yazabileceginden fazlasi
 
-
-    // if (!dev->data[s_pos]) {
-    //     dev->data[s_pos] = kmalloc(quantum, GFP_KERNEL);
-    //     if (!dev->data[s_pos])
-    //         goto out;
-    // }
-    //memory allocation kismi
     char_vector not_crypted = CV_create(count);
-    
+
     if (copy_from_user(not_crypted.data, buf, count)) {
         retval = -EFAULT;
         goto out;
     }
 
-    
-
-    dev->data = encrypt(not_crypted, dev->key);
-
-    printk("DEBUG\n");
-    PRINT_CV(dev->data);
-    // for(int i = 0; i < dev->data.size; i++) kprintf("%c", dev->data.data[i]);
-    
-    // zum kerneli hacklememizi istemiyor
-
-    printk("\n");
+    dev->encrypted_text = encrypt(not_crypted, dev->key);
+    dev->written = 1;
+    dev->readed = 0;
+    dev->size = count;
 
     *f_pos += count;
     retval = count;
 
-    /* update the size */
-    if (dev->size < *f_pos)
-        dev->size = *f_pos;
+    printk("DEBUG Encrypted: ");
+    PRINT_CV(dev->encrypted_text);
 
   out:
+    printk("DEBUG Write End, retval: %d", retval);
     up(&dev->sem);
     return retval;
 }
@@ -219,10 +206,10 @@ int scull_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsign
 long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 #endif
 {
+    struct scull_dev *dev = filp->private_data;
 
 	int err = 0, tmp;
 	int retval = 0;
-
 	/*
 	 * extract the type and number bitfields, and don't decode
 	 * wrong cmds: return ENOTTY (inappropriate ioctl) before access_ok()
@@ -238,11 +225,8 @@ long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	 */
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(5, 0, 0)
-    if (_IOC_DIR(cmd) & _IOC_READ)
-		err = !access_ok((void __user *)arg, _IOC_SIZE(cmd));
-	else if (_IOC_DIR(cmd) & _IOC_WRITE)
-		err =  !access_ok((void __user *)arg, _IOC_SIZE(cmd));
-	if (err) return -EFAULT;
+    err =  !access_ok((void __user *)arg, _IOC_SIZE(cmd));
+    if (err) return -EFAULT;
 #else
 	if (_IOC_DIR(cmd) & _IOC_READ)
 		err = !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd));
@@ -252,80 +236,31 @@ long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 #endif
 
 	switch(cmd) {
-	  case SCULL_IOCRESET:
-		scull_quantum = SCULL_QUANTUM;
-		scull_qset = SCULL_QSET;
-		break;
-
-	  case SCULL_IOCSQUANTUM: /* Set: arg points to the value */
+	  case SCULL_IOC_SET_KEY:
 		if (! capable (CAP_SYS_ADMIN))
 			return -EPERM;
-		retval = __get_user(scull_quantum, (int __user *)arg);
+
+        vault_key_t my_key;
+        copy_from_user((void *)&my_key, (void *)arg, sizeof(vault_key_t));
+        int i;
+        printk("DEBUG key: ");
+        for(i = 0; i < my_key.size; i++) printk(KERN_CONT "%c", my_key.ptr[i]);
+
+        dev->key = CV_create_from_cstr(my_key.ptr, my_key.size);
+
 		break;
 
-	  case SCULL_IOCTQUANTUM: /* Tell: arg is the value */
+    case SCULL_IOC_CLEAR:
 		if (! capable (CAP_SYS_ADMIN))
 			return -EPERM;
-		scull_quantum = arg;
+        
+        dev->size = 0;
+        dev->written = 0;
+        dev->readed = 0;
+        dev->encrypted_text = null_vector;
+
 		break;
 
-	  case SCULL_IOCGQUANTUM: /* Get: arg is pointer to result */
-		retval = __put_user(scull_quantum, (int __user *)arg);
-		break;
-
-	  case SCULL_IOCQQUANTUM: /* Query: return it (it's positive) */
-		return scull_quantum;
-
-	  case SCULL_IOCXQUANTUM: /* eXchange: use arg as pointer */
-		if (! capable (CAP_SYS_ADMIN))
-			return -EPERM;
-		tmp = scull_quantum;
-		retval = __get_user(scull_quantum, (int __user *)arg);
-		if (retval == 0)
-			retval = __put_user(tmp, (int __user *)arg);
-		break;
-
-	  case SCULL_IOCHQUANTUM: /* sHift: like Tell + Query */
-		if (! capable (CAP_SYS_ADMIN))
-			return -EPERM;
-		tmp = scull_quantum;
-		scull_quantum = arg;
-		return tmp;
-
-	  case SCULL_IOCSQSET:
-		if (! capable (CAP_SYS_ADMIN))
-			return -EPERM;
-		retval = __get_user(scull_qset, (int __user *)arg);
-		break;
-
-	  case SCULL_IOCTQSET:
-		if (! capable (CAP_SYS_ADMIN))
-			return -EPERM;
-		scull_qset = arg;
-		break;
-
-	  case SCULL_IOCGQSET:
-		retval = __put_user(scull_qset, (int __user *)arg);
-		break;
-
-	  case SCULL_IOCQQSET:
-		return scull_qset;
-
-	  case SCULL_IOCXQSET:
-		if (! capable (CAP_SYS_ADMIN))
-			return -EPERM;
-		tmp = scull_qset;
-		retval = __get_user(scull_qset, (int __user *)arg);
-		if (retval == 0)
-			retval = put_user(tmp, (int __user *)arg);
-		break;
-
-	  case SCULL_IOCHQSET:
-		if (! capable (CAP_SYS_ADMIN))
-			return -EPERM;
-		tmp = scull_qset;
-		scull_qset = arg;
-		return tmp;
 
 	  default:  /* redundant, as cmd was checked against MAXNR */
 		return -ENOTTY;
@@ -379,18 +314,22 @@ struct file_operations scull_fops = {
 
 void scull_cleanup_module(void)
 {
+    printk("DEBUG Entered clean");
     int i;
     dev_t devno = MKDEV(scull_major, scull_minor);
 
     if (scull_devices) {
         for (i = 0; i < scull_nr_devs; i++) {
             scull_trim(scull_devices + i);
+
             cdev_del(&scull_devices[i].cdev);
         }
     kfree(scull_devices);
     }
 
     unregister_chrdev_region(devno, scull_nr_devs);
+
+    printk("DEBUG End clean");
 }
 
 
@@ -426,101 +365,11 @@ int scull_init_module(void)
     for (i = 0; i < scull_nr_devs; i++) {
         dev = &scull_devices[i];
 
-        dev->data = CV_create(0);
+        dev->encrypted_text = null_vector;
         dev->key = CV_create_from_cstr("dcba", 4);
         dev->size = 0;
         dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
-
-        init_MUTEX(&dev->sem);
-        dev->size = 0;
-        dev->written = 0;
-
+        dev->readed = 0;
 
         init_MUTEX(&dev->sem);
 

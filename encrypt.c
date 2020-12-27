@@ -83,6 +83,8 @@ int* key_to_permutation(char_vector key_char) {
     for(i=0; i<size; i++) {
         key[i] = is_exist[key[i]] - 1;
     }
+    kfree(is_exist);
+
     // The caller should free the memory
     return key;
 }
@@ -123,6 +125,9 @@ char_vector permiter(char_vector text, int *permutation, int key_size){
     for(i=0; i<text.size; i++) {
         CV_push(&encrypted_string, CV2D_get(&encrpyted_matrix, i / key_size, i % key_size));
     }
+
+    CV2D_free(&encrpyted_matrix);
+
     return encrypted_string;
 }
 
