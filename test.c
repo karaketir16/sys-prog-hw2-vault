@@ -85,6 +85,31 @@ int main(){
     } else {
         printf("Cannot write, error code: %d\n", ret_val);
     }
+
+    printf("\n");
+    printf("\n");
+
+    printf("Clearing\n");
+    ret_val = ioctl(f, SCULL_IOC_CLEAR);
+    if(ret_val >= 0) {
+        printf("Cleared\n");
+    } else {
+        printf("Cannot clear, error code: %d\n", ret_val);
+    }
+
+    printf("\n");
+    printf("\n");
+
+    printf("Reading test string after clear\n");
+    lseek(f,0,SEEK_SET);
+    ret_val = read(f,read_buf,100);
+    if(ret_val >= 0){
+        printf("Read string: ");
+        for(int i =0; i < ret_val;i++) printf("%c",read_buf[i]);
+    } else {
+        printf("Cannot read, error code: %d\n", ret_val);
+    }
+
     return 0;    
 }
 
