@@ -42,9 +42,11 @@ int vault_nr_devs = VAULT_NR_DEVS;
 MODULE_AUTHOR("Alessandro Rubini, Jonathan Corbet");
 MODULE_LICENSE("Dual BSD/GPL");
 
+char_vector global_key;
+
 struct vault_dev {
-    char_vector key;
     char_vector encrypted_text;
+    // char_vector key;
     int written;
     int readed;
 
@@ -140,7 +142,7 @@ ssize_t vault_read(struct file *filp, char __user *buf, size_t count,
     // }
 
 
-    decrypted  = decrypt(&dev->encrypted_text, &dev->key);
+    decrypted  = decrypt(&dev->encrypted_text, &global_key);
 
 
     if (copy_to_user(buf, decrypted.data, count)) {
@@ -189,7 +191,7 @@ ssize_t vault_write(struct file *filp, const char __user *buf, size_t count,
         goto out;
     }
 
-    crypted = encrypt(&not_crypted, &dev->key);
+    crypted = encrypt(&not_crypted, &global_key);
     CV_move(&not_crypted, &null_vector); //delete not cyrpted
 
     CV_move(&(dev->encrypted_text), &crypted);
@@ -267,7 +269,7 @@ long vault_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         printk("DEBUG key: ");
         for(i = 0; i < my_key.size; i++) printk(KERN_CONT "%c", key_ptr[i]);
         tmp_key = CV_create_from_cstr(key_ptr, my_key.size);
-        CV_move(&(dev->key), &tmp_key); 
+        CV_move(&(global_key), &tmp_key); 
 
 		break;
 
@@ -279,6 +281,7 @@ long vault_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         dev->written = 0;
         dev->readed = 0;
         CV_move(&(dev->encrypted_text), &null_vector); 
+        printk("CLEAR");
 
 		break;
 
@@ -344,7 +347,7 @@ void vault_cleanup_module(void)
         for (i = 0; i < vault_nr_devs; i++) {
             // vault_trim(vault_devices + i);
             CV_move(&(vault_devices[i].encrypted_text), &null_vector); 
-            CV_move(&(vault_devices[i].key), &null_vector); 
+            CV_move(&(global_key), &null_vector); 
 
             cdev_del(&vault_devices[i].cdev);
         }
@@ -385,12 +388,13 @@ int vault_init_module(void)
     }
     memset(vault_devices, 0, vault_nr_devs * sizeof(struct vault_dev));
 
+    global_key = CV_create_from_cstr(INITIAL_KEY);
     /* Initialize each device. */
     for (i = 0; i < vault_nr_devs; i++) {
         dev = &vault_devices[i];
 
         dev->encrypted_text = null_vector;
-        dev->key = CV_create_from_cstr(INITIAL_KEY);
+        // dev->key = CV_create_from_cstr(INITIAL_KEY);
         dev->size = 0;
         dev->written = 0;
         dev->readed = 0;

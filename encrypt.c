@@ -17,35 +17,35 @@
 #include <stdio.h>
 
 
-int main(){
-    char_vector key_test = CV_create(0);
-    CV_push(&key_test, 'c');
-    CV_push(&key_test, 'e');
-    CV_push(&key_test, 'a');
-    CV_push(&key_test, 'y');
-    CV_push(&key_test, 'f');
-    int* key = key_to_permutation(key_test);
-    int* inverse = inverse_of_key(key, 5);
-    for(int i = 0; i < 5; i++) printf("%d ", key[i]);
-    puts("");
-    for(int i = 0; i < 5; i++) printf("%d ", inverse[i]);
-    puts("");
-    // oneringtorulethemall
-    char_vector res = encrypt(CV_create_from_cstr("oneringtorulethemall", strlen("oneringtorulethemall")), key_test);
-    printf("\nsize: %d\n", res.size);
+// int main(){
+//     char_vector key_test = CV_create(0);
+//     CV_push(&key_test, 'c');
+//     CV_push(&key_test, 'e');
+//     CV_push(&key_test, 'a');
+//     CV_push(&key_test, 'y');
+//     CV_push(&key_test, 'f');
+//     int* key = key_to_permutation(key_test);
+//     int* inverse = inverse_of_key(key, 5);
+//     for(int i = 0; i < 5; i++) printf("%d ", key[i]);
+//     puts("");
+//     for(int i = 0; i < 5; i++) printf("%d ", inverse[i]);
+//     puts("");
+//     // oneringtorulethemall
+//     char_vector res = encrypt(CV_create_from_cstr("oneringtorulethemall", strlen("oneringtorulethemall")), key_test);
+//     printf("\nsize: %d\n", res.size);
 
-    for(int i = 0; i < res.size; i++) printf("%c", res.data[i]);
-    puts("");
+//     for(int i = 0; i < res.size; i++) printf("%c", res.data[i]);
+//     puts("");
 
 
-    res = decrypt(CV_create_from_cstr("neoirgtnroleuhtmaell", strlen("neoirgtnroleuhtmaell")), key_test);
-    printf("\nsize: %d\n", res.size);
+//     res = decrypt(CV_create_from_cstr("neoirgtnroleuhtmaell", strlen("neoirgtnroleuhtmaell")), key_test);
+//     printf("\nsize: %d\n", res.size);
 
-    for(int i = 0; i < res.size; i++) printf("%c", res.data[i]);
-    puts("");
+//     for(int i = 0; i < res.size; i++) printf("%c", res.data[i]);
+//     puts("");
 
-    return 0;
-}
+//     return 0;
+// }
 
 #endif
 
