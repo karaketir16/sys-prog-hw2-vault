@@ -91,14 +91,17 @@ int* key_to_permutation(char_vector key_char) {
 
 
 extern char_vector encrypt(char_vector text, char_vector key){
+    int* tmp;
+    int* permutation;
+    char_vector ret_val;
     while(text.size % key.size != 0){
         CV_push(&text, '0');
     }
-    int* tmp = key_to_permutation(key);
-    int* permutation = inverse_of_key(tmp, key.size);
+    tmp = key_to_permutation(key);
+    permutation = inverse_of_key(tmp, key.size);
     kfree(tmp);
     
-    char_vector ret_val = permiter(text, permutation, key.size);
+    ret_val = permiter(text, permutation, key.size);
     kfree(permutation);
     return ret_val;
 }
@@ -114,6 +117,7 @@ char_vector decrypt(char_vector text, char_vector key){
 char_vector permiter(char_vector text, int *permutation, int key_size){
     char_vector_2D encrpyted_matrix = CV2D_create(0);
     int i, j;
+    char_vector encrypted_string = CV_create(0);
     for(i=0; i<text.size / key_size; i++){
         char_vector row = CV_create(key_size);
         for(j=0; j<key_size; j++){
@@ -121,7 +125,7 @@ char_vector permiter(char_vector text, int *permutation, int key_size){
         }
         CV2D_push(&encrpyted_matrix, row);
     }
-    char_vector encrypted_string = CV_create(0);
+    
     for(i=0; i<text.size; i++) {
         CV_push(&encrypted_string, CV2D_get(&encrpyted_matrix, i / key_size, i % key_size));
     }

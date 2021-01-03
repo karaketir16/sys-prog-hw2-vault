@@ -33,6 +33,7 @@
 
 #define VAULT_MAJOR 0
 #define VAULT_NR_DEVS 4
+#define INITIAL_KEY "abcd",4
 
 int vault_major = VAULT_MAJOR;
 int vault_minor = 0;
@@ -55,25 +56,25 @@ struct vault_dev {
 struct vault_dev *vault_devices;
 
 
-int vault_trim(struct vault_dev *dev)
-{
-    // int i;
+// int vault_trim(struct vault_dev *dev)
+// {
+//     // int i;
 
-    // if (dev->data) {
-    //     for (i = 0; i < dev->qset; i++) {
-    //         if (dev->data[i])
-    //             kfree(dev->data[i]);
-    //     }
-    //     kfree(dev->data);
-    // }
-    // dev->data = NULL;
-    //dev->quantum = vault_quantum;
-    //dev->qset = vault_qset;
-    // dev->written = 0;
-    // dev->size = 0;
-    // dev->encrypted_text = CV_create(0);
-    return 0;
-}
+//     // if (dev->data) {
+//     //     for (i = 0; i < dev->qset; i++) {
+//     //         if (dev->data[i])
+//     //             kfree(dev->data[i]);
+//     //     }
+//     //     kfree(dev->data);
+//     // }
+//     // dev->data = NULL;
+//     //dev->quantum = vault_quantum;
+//     //dev->qset = vault_qset;
+//     // dev->written = 0;
+//     // dev->size = 0;
+//     // dev->encrypted_text = CV_create(0);
+//     return 0;
+// }
 
 
 int vault_open(struct inode *inode, struct file *filp)
@@ -84,12 +85,12 @@ int vault_open(struct inode *inode, struct file *filp)
     filp->private_data = dev;
 
     /* trim the device if open was write-only */
-    if ((filp->f_flags & O_ACCMODE) == O_WRONLY) {
-        if (down_interruptible(&dev->sem))
-            return -ERESTARTSYS;
-        vault_trim(dev);
-        up(&dev->sem);
-    }
+    // if ((filp->f_flags & O_ACCMODE) == O_WRONLY) {
+    //     if (down_interruptible(&dev->sem))
+    //         return -ERESTARTSYS;
+    //     vault_trim(dev);
+    //     up(&dev->sem);
+    // }
     return 0;
 }
 
@@ -99,14 +100,17 @@ int vault_release(struct inode *inode, struct file *filp)
     return 0;
 }
 
-#define PRINT_CV(x) int i=0;for(i=0;i<(x).size;i++) printk(KERN_CONT "%c", (x).data[i]);
+int i=0;
+#define PRINT_CV(x) for(i=0;i<(x).size;i++) printk(KERN_CONT "%c", (x).data[i]);
 
 ssize_t vault_read(struct file *filp, char __user *buf, size_t count,
                    loff_t *f_pos)
 {
-    printk("DEBUG Read entered, f_pos: %d , count: %d\n", *f_pos, count);
     struct vault_dev *dev = filp->private_data;
     ssize_t retval = 0;
+    char_vector decrypted;
+
+    printk("DEBUG Read entered, f_pos: %lld , count: %ld\n", *f_pos, count);
 
     if (down_interruptible(&dev->sem)){
         printk("Mutex err\n");
@@ -136,7 +140,7 @@ ssize_t vault_read(struct file *filp, char __user *buf, size_t count,
     // }
 
 
-    char_vector decrypted = decrypt(dev->encrypted_text, dev->key);
+    decrypted  = decrypt(dev->encrypted_text, dev->key);
 
 
     if (copy_to_user(buf, decrypted.data, count)) {
@@ -153,7 +157,7 @@ ssize_t vault_read(struct file *filp, char __user *buf, size_t count,
     retval = count;
 
   out:
-    printk("DEBUG Read End, retval: %d", retval);
+    printk("DEBUG Read End, retval: %ld", retval);
     up(&dev->sem);
     return retval;
 }
@@ -162,9 +166,11 @@ ssize_t vault_read(struct file *filp, char __user *buf, size_t count,
 ssize_t vault_write(struct file *filp, const char __user *buf, size_t count,
                     loff_t *f_pos)
 {
-    printk("DEBUG Write entered, count: %d\n", count);
     struct vault_dev *dev = filp->private_data;
     ssize_t retval = -ENOMEM;
+    char_vector not_crypted;
+    char_vector crypted;
+    printk("DEBUG Write entered, count: %ld\n", count);
 
     if (down_interruptible(&dev->sem))
         return -ERESTARTSYS;
@@ -176,14 +182,17 @@ ssize_t vault_write(struct file *filp, const char __user *buf, size_t count,
     }
 
 
-    char_vector not_crypted = CV_create(count);
+    not_crypted = CV_create(count);
 
     if (copy_from_user(not_crypted.data, buf, count)) {
         retval = -EFAULT;
         goto out;
     }
 
-    dev->encrypted_text = encrypt(not_crypted, dev->key);
+    crypted = encrypt(not_crypted, dev->key);
+    CV_move(&not_crypted, &null_vector); //delete not cyrpted
+
+    CV_move(&(dev->encrypted_text), &crypted);
     dev->written = 1;
     dev->readed = 0;
     dev->size = count;
@@ -195,7 +204,7 @@ ssize_t vault_write(struct file *filp, const char __user *buf, size_t count,
     PRINT_CV(dev->encrypted_text);
 
   out:
-    printk("DEBUG Write End, retval: %d", retval);
+    printk("DEBUG Write End, retval: %ld", retval);
     up(&dev->sem);
     return retval;
 }
@@ -207,8 +216,12 @@ long vault_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 #endif
 {
     struct vault_dev *dev = filp->private_data;
+    char_vector tmp_key;
+    vault_key_t my_key;
+    int i;
+    char *key_ptr;
 
-	int err = 0, tmp;
+	int err = 0;
 	int retval = 0;
 	/*
 	 * extract the type and number bitfields, and don't decode
@@ -240,15 +253,21 @@ long vault_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		if (! capable (CAP_SYS_ADMIN))
 			return -EPERM;
 
-        vault_key_t my_key;
-        copy_from_user((void *)&my_key, (void *)arg, sizeof(vault_key_t));
-        char *key_ptr =( char *) kmalloc(my_key.size * sizeof(char), GFP_KERNEL);
-        copy_from_user((void *)key_ptr, (void *)my_key.ptr, my_key.size * sizeof(char));
-        int i;
+        
+        if(copy_from_user((void *)&my_key, (void *)arg, sizeof(vault_key_t))) {
+            retval = -EFAULT;
+            return retval;
+        }
+        key_ptr =( char *) kmalloc(my_key.size * sizeof(char), GFP_KERNEL);
+        if(copy_from_user((void *)key_ptr, (void *)my_key.ptr, my_key.size * sizeof(char))) {
+            retval = -EFAULT;
+            return retval;
+        }
+        
         printk("DEBUG key: ");
         for(i = 0; i < my_key.size; i++) printk(KERN_CONT "%c", key_ptr[i]);
-
-        dev->key = CV_create_from_cstr(key_ptr, my_key.size);
+        tmp_key = CV_create_from_cstr(key_ptr, my_key.size);
+        CV_move(&(dev->key), &tmp_key); 
 
 		break;
 
@@ -259,7 +278,7 @@ long vault_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         dev->size = 0;
         dev->written = 0;
         dev->readed = 0;
-        dev->encrypted_text = null_vector;
+        CV_move(&(dev->encrypted_text), &null_vector); 
 
 		break;
 
@@ -316,13 +335,16 @@ struct file_operations vault_fops = {
 
 void vault_cleanup_module(void)
 {
-    printk("DEBUG Entered clean");
-    int i;
+    int i;    
     dev_t devno = MKDEV(vault_major, vault_minor);
+
+    printk("DEBUG Entered clean");
 
     if (vault_devices) {
         for (i = 0; i < vault_nr_devs; i++) {
-            vault_trim(vault_devices + i);
+            // vault_trim(vault_devices + i);
+            CV_move(&(vault_devices[i].encrypted_text), &null_vector); 
+            CV_move(&(vault_devices[i].key), &null_vector); 
 
             cdev_del(&vault_devices[i].cdev);
         }
@@ -368,7 +390,7 @@ int vault_init_module(void)
         dev = &vault_devices[i];
 
         dev->encrypted_text = null_vector;
-        dev->key = CV_create_from_cstr("dcba", 4);
+        dev->key = CV_create_from_cstr(INITIAL_KEY);
         dev->size = 0;
         dev->written = 0;
         dev->readed = 0;

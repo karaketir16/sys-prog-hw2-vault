@@ -45,19 +45,20 @@ char_vector CV_create(int size){
     return tmp;
 }
 
-CV_move(char_vector *a, char_vector *b){
+void CV_move(char_vector *a, char_vector *b){
     if(a->data){
         kfree(a->data);
     }
     *a = *b;
+    *b = null_vector;
 }
 
 char_vector CV_create_from_cstr(char *chr,int size){
+    int i = 0;
     char_vector tmp;
     tmp.size = 0;
     tmp.cap = tmp.size + 1;
     tmp.data = (char*) kmalloc(tmp.cap * sizeof(char), GFP_KERNEL);
-    int i = 0;
     for( i =0; i < size;i++){
         CV_push(&tmp, chr[i]);
     }
@@ -135,7 +136,7 @@ char CV2D_get(char_vector_2D *this, int index_i, int index_j){
 void CV2D_free(char_vector_2D *this){
     int i;
     for(i=0;i<this->size;i++){
-        CV_free(this->data + i);
+        CV_move(this->data + i, &null_vector);
     }
     kfree(this->data);
 }

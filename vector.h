@@ -16,7 +16,7 @@ char CV_push(char_vector *this, char ch);
 char CV_pop(char_vector *this);
 char CV_set_index(char_vector *this, int index, char ch);
 char CV_get_index(char_vector *this, int index);
-void CV_free(char_vector *this);
+void CV_move(char_vector *a, char_vector *b);
 
 typedef struct char_vector_2D
 {
