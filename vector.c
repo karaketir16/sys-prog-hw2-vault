@@ -45,7 +45,7 @@ char_vector CV_create(int size){
     return tmp;
 }
 
-CV_move(char_vector *a, char_vector *b){
+void CV_move(char_vector *a, char_vector *b){
     if(a->data){
         kfree(a->data);
     }
@@ -88,6 +88,13 @@ char CV_push(char_vector *this, char ch){
 char CV_pop(char_vector *this){
     this->size--;
     return CV_get_index(this, this->size);
+}
+
+void CV_free(char_vector *this){
+    if(this->data){
+        kfree(this->data);
+    }
+    this->data = NULL;
 }
 
 char_vector_2D CV2D_create(int size){

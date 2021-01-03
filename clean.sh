@@ -1,4 +1,4 @@
 #!/bin/bash
-rm -f /dev/vault0
-rmmod asd
+rm -f /dev/vault
+rmmod vault
 make clean
