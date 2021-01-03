@@ -15,27 +15,25 @@
 
 #include <stdio.h>
 
-// int main(){
-//     char_vector chv = CV_create();
-//     for(char c = 'a'; c <='z'; c++){
-//         CV_push(&chv, c);
-//     }
-//     char_vector_2D chvv = CV2D_create();
-//     for(char c = 'a'; c <='z'; c++){
-//         CV2D_push(&chvv, chv);
-//     }
-//     for(char i = 0; 'a' + i <='z'; i++){
-//         char_vector tmp = CV2D_pop(&chvv);
-//         for(char j = 0; 'a' + j <='z'; j++){
-//             printf("test: %c\n", CV_pop(&tmp));
-//         }
-//     }
-//     return 0;
-// }
+int main(){
+    char_vector chv = CV_create();
+    for(char c = 'a'; c <='z'; c++){
+        CV_push(&chv, c);
+    }
+    char_vector_2D chvv = CV2D_create();
+    for(char c = 'a'; c <='z'; c++){
+        CV2D_push(&chvv, chv);
+    }
+    for(char i = 0; 'a' + i <='z'; i++){
+        char_vector tmp = CV2D_pop(&chvv);
+        for(char j = 0; 'a' + j <='z'; j++){
+            printf("test: %c\n", CV_pop(&tmp));
+        }
+    }
+    return 0;
+}
 
 #endif
-
-#define _ return;
 
 char_vector null_vector = {.data=0,.size=0,.cap=0};
 
@@ -45,6 +43,13 @@ char_vector CV_create(int size){
     tmp.cap = tmp.size + 1;
     tmp.data = (char*) kmalloc(tmp.cap * sizeof(char), GFP_KERNEL);
     return tmp;
+}
+
+CV_move(char_vector *a, char_vector *b){
+    if(a->data){
+        kfree(a->data);
+    }
+    *a = *b;
 }
 
 char_vector CV_create_from_cstr(char *chr,int size){
@@ -83,13 +88,6 @@ char CV_push(char_vector *this, char ch){
 char CV_pop(char_vector *this){
     this->size--;
     return CV_get_index(this, this->size);
-}
-
-void CV_free(char_vector *this){
-    _
-    if(this->data)
-        kfree(this->data);
-    this->data = NULL;
 }
 
 char_vector_2D CV2D_create(int size){

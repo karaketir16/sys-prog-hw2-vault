@@ -4,10 +4,10 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 
-#include "scull_ioctl.h"
+#include "vault_ioctl.h"
 
 int main(){
-    int f = open("/dev/scull", O_RDWR);
+    int f = open("/dev/vault", O_RDWR);
     int ret_val;
     if(f <= 0){
         printf("File can not open\n");
@@ -19,7 +19,7 @@ int main(){
     my_key.size = 5;
 
     printf("Seting key as 'ceayf'\n");
-    ret_val = ioctl(f, SCULL_IOC_SET_KEY, &my_key);
+    ret_val = ioctl(f, VAULT_IOC_SET_KEY, &my_key);
     if(ret_val >= 0) {
         printf("Key setted as 'ceayf'\n");
     } else {
@@ -90,7 +90,7 @@ int main(){
     printf("\n");
 
     printf("Clearing\n");
-    ret_val = ioctl(f, SCULL_IOC_CLEAR);
+    ret_val = ioctl(f, VAULT_IOC_CLEAR);
     if(ret_val >= 0) {
         printf("Cleared\n");
     } else {

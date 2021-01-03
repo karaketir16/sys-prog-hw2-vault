@@ -28,20 +28,20 @@
 
 #include "encrypt.h"
 
-#include "scull_ioctl.h"
+#include "vault_ioctl.h"
 
 
-#define SCULL_MAJOR 0
-#define SCULL_NR_DEVS 4
+#define VAULT_MAJOR 0
+#define VAULT_NR_DEVS 4
 
-int scull_major = SCULL_MAJOR;
-int scull_minor = 0;
-int scull_nr_devs = SCULL_NR_DEVS;
+int vault_major = VAULT_MAJOR;
+int vault_minor = 0;
+int vault_nr_devs = VAULT_NR_DEVS;
 
 MODULE_AUTHOR("Alessandro Rubini, Jonathan Corbet");
 MODULE_LICENSE("Dual BSD/GPL");
 
-struct scull_dev {
+struct vault_dev {
     char_vector key;
     char_vector encrypted_text;
     int written;
@@ -52,10 +52,10 @@ struct scull_dev {
     struct cdev cdev;
 };
 
-struct scull_dev *scull_devices;
+struct vault_dev *vault_devices;
 
 
-int scull_trim(struct scull_dev *dev)
+int vault_trim(struct vault_dev *dev)
 {
     // int i;
 
@@ -67,8 +67,8 @@ int scull_trim(struct scull_dev *dev)
     //     kfree(dev->data);
     // }
     // dev->data = NULL;
-    //dev->quantum = scull_quantum;
-    //dev->qset = scull_qset;
+    //dev->quantum = vault_quantum;
+    //dev->qset = vault_qset;
     // dev->written = 0;
     // dev->size = 0;
     // dev->encrypted_text = CV_create(0);
@@ -76,36 +76,36 @@ int scull_trim(struct scull_dev *dev)
 }
 
 
-int scull_open(struct inode *inode, struct file *filp)
+int vault_open(struct inode *inode, struct file *filp)
 {
-    struct scull_dev *dev;
+    struct vault_dev *dev;
 
-    dev = container_of(inode->i_cdev, struct scull_dev, cdev);
+    dev = container_of(inode->i_cdev, struct vault_dev, cdev);
     filp->private_data = dev;
 
     /* trim the device if open was write-only */
     if ((filp->f_flags & O_ACCMODE) == O_WRONLY) {
         if (down_interruptible(&dev->sem))
             return -ERESTARTSYS;
-        scull_trim(dev);
+        vault_trim(dev);
         up(&dev->sem);
     }
     return 0;
 }
 
 
-int scull_release(struct inode *inode, struct file *filp)
+int vault_release(struct inode *inode, struct file *filp)
 {
     return 0;
 }
 
 #define PRINT_CV(x) int i=0;for(i=0;i<(x).size;i++) printk(KERN_CONT "%c", (x).data[i]);
 
-ssize_t scull_read(struct file *filp, char __user *buf, size_t count,
+ssize_t vault_read(struct file *filp, char __user *buf, size_t count,
                    loff_t *f_pos)
 {
     printk("DEBUG Read entered, f_pos: %d , count: %d\n", *f_pos, count);
-    struct scull_dev *dev = filp->private_data;
+    struct vault_dev *dev = filp->private_data;
     ssize_t retval = 0;
 
     if (down_interruptible(&dev->sem)){
@@ -159,11 +159,11 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count,
 }
 
 
-ssize_t scull_write(struct file *filp, const char __user *buf, size_t count,
+ssize_t vault_write(struct file *filp, const char __user *buf, size_t count,
                     loff_t *f_pos)
 {
     printk("DEBUG Write entered, count: %d\n", count);
-    struct scull_dev *dev = filp->private_data;
+    struct vault_dev *dev = filp->private_data;
     ssize_t retval = -ENOMEM;
 
     if (down_interruptible(&dev->sem))
@@ -201,12 +201,12 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count,
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-int scull_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
+int vault_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
 #else
-long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+long vault_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 #endif
 {
-    struct scull_dev *dev = filp->private_data;
+    struct vault_dev *dev = filp->private_data;
 
 	int err = 0, tmp;
 	int retval = 0;
@@ -214,8 +214,8 @@ long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	 * extract the type and number bitfields, and don't decode
 	 * wrong cmds: return ENOTTY (inappropriate ioctl) before access_ok()
 	 */
-	if (_IOC_TYPE(cmd) != SCULL_IOC_MAGIC) return -ENOTTY;
-	if (_IOC_NR(cmd) > SCULL_IOC_MAXNR) return -ENOTTY;
+	if (_IOC_TYPE(cmd) != VAULT_IOC_MAGIC) return -ENOTTY;
+	if (_IOC_NR(cmd) > VAULT_IOC_MAXNR) return -ENOTTY;
 
 	/*
 	 * the direction is a bitmask, and VERIFY_WRITE catches R/W
@@ -236,21 +236,23 @@ long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 #endif
 
 	switch(cmd) {
-	  case SCULL_IOC_SET_KEY:
+	  case VAULT_IOC_SET_KEY:
 		if (! capable (CAP_SYS_ADMIN))
 			return -EPERM;
 
         vault_key_t my_key;
         copy_from_user((void *)&my_key, (void *)arg, sizeof(vault_key_t));
+        char *key_ptr =( char *) kmalloc(my_key.size * sizeof(char), GFP_KERNEL);
+        copy_from_user((void *)key_ptr, (void *)my_key.ptr, my_key.size * sizeof(char));
         int i;
         printk("DEBUG key: ");
-        for(i = 0; i < my_key.size; i++) printk(KERN_CONT "%c", my_key.ptr[i]);
+        for(i = 0; i < my_key.size; i++) printk(KERN_CONT "%c", key_ptr[i]);
 
-        dev->key = CV_create_from_cstr(my_key.ptr, my_key.size);
+        dev->key = CV_create_from_cstr(key_ptr, my_key.size);
 
 		break;
 
-    case SCULL_IOC_CLEAR:
+    case VAULT_IOC_CLEAR:
 		if (! capable (CAP_SYS_ADMIN))
 			return -EPERM;
         
@@ -269,9 +271,9 @@ long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 }
 
 
-loff_t scull_llseek(struct file *filp, loff_t off, int whence)
+loff_t vault_llseek(struct file *filp, loff_t off, int whence)
 {
-    struct scull_dev *dev = filp->private_data;
+    struct vault_dev *dev = filp->private_data;
     loff_t newpos;
 
     switch(whence) {
@@ -297,73 +299,73 @@ loff_t scull_llseek(struct file *filp, loff_t off, int whence)
 }
 
 
-struct file_operations scull_fops = {
+struct file_operations vault_fops = {
     .owner =    THIS_MODULE,
-    .llseek =   scull_llseek,
-    .read =     scull_read,
-    .write =    scull_write,
+    .llseek =   vault_llseek,
+    .read =     vault_read,
+    .write =    vault_write,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-    .ioctl =    scull_ioctl,
+    .ioctl =    vault_ioctl,
 #else
-    .unlocked_ioctl =    scull_ioctl,
+    .unlocked_ioctl =    vault_ioctl,
 #endif
-    .open =     scull_open,
-    .release =  scull_release,
+    .open =     vault_open,
+    .release =  vault_release,
 };
 
 
-void scull_cleanup_module(void)
+void vault_cleanup_module(void)
 {
     printk("DEBUG Entered clean");
     int i;
-    dev_t devno = MKDEV(scull_major, scull_minor);
+    dev_t devno = MKDEV(vault_major, vault_minor);
 
-    if (scull_devices) {
-        for (i = 0; i < scull_nr_devs; i++) {
-            scull_trim(scull_devices + i);
+    if (vault_devices) {
+        for (i = 0; i < vault_nr_devs; i++) {
+            vault_trim(vault_devices + i);
 
-            cdev_del(&scull_devices[i].cdev);
+            cdev_del(&vault_devices[i].cdev);
         }
-    kfree(scull_devices);
+    kfree(vault_devices);
     }
 
-    unregister_chrdev_region(devno, scull_nr_devs);
+    unregister_chrdev_region(devno, vault_nr_devs);
 
     printk("DEBUG End clean");
 }
 
 
-int scull_init_module(void)
+int vault_init_module(void)
 {
     int result, i;
     int err;
     dev_t devno = 0;
-    struct scull_dev *dev;
+    struct vault_dev *dev;
 
-    if (scull_major) {
-        devno = MKDEV(scull_major, scull_minor);
-        result = register_chrdev_region(devno, scull_nr_devs, "scull");
+    if (vault_major) {
+        devno = MKDEV(vault_major, vault_minor);
+        result = register_chrdev_region(devno, vault_nr_devs, "vault");
     } else {
-        result = alloc_chrdev_region(&devno, scull_minor, scull_nr_devs,
-                                     "scull");
-        scull_major = MAJOR(devno);
+        result = alloc_chrdev_region(&devno, vault_minor, vault_nr_devs,
+                                     "vault");
+        vault_major = MAJOR(devno);
     }
     if (result < 0) {
-        printk(KERN_WARNING "scull: can't get major %d\n", scull_major);
+        printk(KERN_WARNING "vault: can't get major %d\n", vault_major);
         return result;
     }
 
-    scull_devices = kmalloc(scull_nr_devs * sizeof(struct scull_dev),
+    vault_devices = kmalloc(vault_nr_devs * sizeof(struct vault_dev),
                             GFP_KERNEL);
-    if (!scull_devices) {
+    if (!vault_devices) {
         result = -ENOMEM;
         goto fail;
     }
-    memset(scull_devices, 0, scull_nr_devs * sizeof(struct scull_dev));
+    memset(vault_devices, 0, vault_nr_devs * sizeof(struct vault_dev));
 
     /* Initialize each device. */
-    for (i = 0; i < scull_nr_devs; i++) {
-        dev = &scull_devices[i];
+    for (i = 0; i < vault_nr_devs; i++) {
+        dev = &vault_devices[i];
 
         dev->encrypted_text = null_vector;
         dev->key = CV_create_from_cstr("dcba", 4);
@@ -373,21 +375,21 @@ int scull_init_module(void)
 
         init_MUTEX(&dev->sem);
 
-        devno = MKDEV(scull_major, scull_minor + i);
-        cdev_init(&dev->cdev, &scull_fops);
+        devno = MKDEV(vault_major, vault_minor + i);
+        cdev_init(&dev->cdev, &vault_fops);
         dev->cdev.owner = THIS_MODULE;
-        dev->cdev.ops = &scull_fops;
+        dev->cdev.ops = &vault_fops;
         err = cdev_add(&dev->cdev, devno, 1);
         if (err)
-            printk(KERN_NOTICE "Error %d adding scull%d", err, i);
+            printk(KERN_NOTICE "Error %d adding vault%d", err, i);
     }
 
     return 0; /* succeed */
 
   fail:
-    scull_cleanup_module();
+    vault_cleanup_module();
     return result;
 }
 
-module_init(scull_init_module);
-module_exit(scull_cleanup_module);
+module_init(vault_init_module);
+module_exit(vault_cleanup_module);

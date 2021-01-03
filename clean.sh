@@ -1,4 +1,4 @@
 #!/bin/bash
-rm -f /dev/scull
+rm -f /dev/vault0
 rmmod asd
 make clean
