@@ -64,16 +64,16 @@ int* inverse_of_key(int* key, int size) {
     return inverse_key;
 }
 
-int* key_to_permutation(char_vector key_char) {
+int* key_to_permutation(char_vector *key_char) {
     int i;
-    int size = key_char.size;
+    int size = key_char->size;
     int* key = kmalloc(sizeof(int) * size, GFP_KERNEL);
     // ac => 1 3 => 2
     int *is_exist = (int*) kmalloc(sizeof(int) * 30, GFP_KERNEL);
     memset(is_exist, 0, sizeof (int) * 30);
     for(i=0; i<size; i++) {
         // c => 0 based
-        int c = order_of_char(CV_get_index(&key_char, i));
+        int c = order_of_char(CV_get_index(key_char, i));
         is_exist[c] = 1;
         key[i] = c;
     }
@@ -90,43 +90,43 @@ int* key_to_permutation(char_vector key_char) {
 }
 
 
-extern char_vector encrypt(char_vector text, char_vector key){
+extern char_vector encrypt(char_vector *text, char_vector *key){
     int* tmp;
     int* permutation;
     char_vector ret_val;
-    while(text.size % key.size != 0){
-        CV_push(&text, '0');
+    while(text->size % key->size != 0){
+        CV_push(text, '0');
     }
     tmp = key_to_permutation(key);
-    permutation = inverse_of_key(tmp, key.size);
+    permutation = inverse_of_key(tmp, key->size);
     kfree(tmp);
     
-    ret_val = permiter(text, permutation, key.size);
+    ret_val = permiter(text, permutation, key->size);
     kfree(permutation);
     return ret_val;
 }
 
-char_vector decrypt(char_vector text, char_vector key){
+char_vector decrypt(char_vector *text, char_vector *key){
     int* permutation = key_to_permutation(key);
 
-    char_vector ret_val = permiter(text, permutation, key.size);
+    char_vector ret_val = permiter(text, permutation, key->size);
     kfree(permutation);
     return ret_val;
 }
 
-char_vector permiter(char_vector text, int *permutation, int key_size){
+char_vector permiter(char_vector *text, int *permutation, int key_size){
     char_vector_2D encrpyted_matrix = CV2D_create(0);
     int i, j;
     char_vector encrypted_string = CV_create(0);
-    for(i=0; i<text.size / key_size; i++){
+    for(i=0; i<text->size / key_size; i++){
         char_vector row = CV_create(key_size);
         for(j=0; j<key_size; j++){
-            CV_set_index(&row, permutation[j], CV_get_index(&text, i*key_size + j));
+            CV_set_index(&row, permutation[j], CV_get_index(text, i*key_size + j));
         }
         CV2D_push(&encrpyted_matrix, row);
     }
     
-    for(i=0; i<text.size; i++) {
+    for(i=0; i<text->size; i++) {
         CV_push(&encrypted_string, CV2D_get(&encrpyted_matrix, i / key_size, i % key_size));
     }
 

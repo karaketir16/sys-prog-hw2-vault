@@ -140,7 +140,7 @@ ssize_t vault_read(struct file *filp, char __user *buf, size_t count,
     // }
 
 
-    decrypted  = decrypt(dev->encrypted_text, dev->key);
+    decrypted  = decrypt(&dev->encrypted_text, &dev->key);
 
 
     if (copy_to_user(buf, decrypted.data, count)) {
@@ -189,7 +189,7 @@ ssize_t vault_write(struct file *filp, const char __user *buf, size_t count,
         goto out;
     }
 
-    crypted = encrypt(not_crypted, dev->key);
+    crypted = encrypt(&not_crypted, &dev->key);
     CV_move(&not_crypted, &null_vector); //delete not cyrpted
 
     CV_move(&(dev->encrypted_text), &crypted);
