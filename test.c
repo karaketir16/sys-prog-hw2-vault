@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <string.h>
 
 #include "vault_ioctl.h"
 
@@ -42,7 +43,7 @@ int main(){
     char testString[] = "oneringtorulethemall";
 
     printf("Writing test string: %s\n", testString);
-    ret_val = write(f,testString, sizeof(testString));
+    ret_val = write(f,testString, strlen(testString));
     if(ret_val > 0){
         printf("Written %d\n", ret_val);
     } else {
@@ -54,7 +55,7 @@ int main(){
 
     printf("Writing test string again, before reading: %s\n", testString);
     lseek(f,0,SEEK_SET);
-    ret_val = write(f,testString, sizeof(testString));
+    ret_val = write(f,testString, strlen(testString));
     if(ret_val > 0){
         printf("Written %d\n", ret_val);
     } else {
@@ -79,7 +80,7 @@ int main(){
 
     printf("Writing test string again, after reading: %s\n", testString);
     lseek(f,0,SEEK_SET);
-    ret_val = write(f,testString, sizeof(testString));
+    ret_val = write(f,testString, strlen(testString));
     if(ret_val > 0){
         printf("Written %d\n", ret_val);
     } else {
